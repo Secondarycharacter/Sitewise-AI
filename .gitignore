@@ -1,0 +1,7 @@
+.env
+.cursor/mcp.json
+__pycache__/
+*.pyc
+apps/api/static/models/*.glb
+apps/web/.next/
+apps/web/node_modules/

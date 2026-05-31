@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+shapely
+trimesh
+geopandas
+numpy
+mapbox-earcut
+requests
+python-dotenv
