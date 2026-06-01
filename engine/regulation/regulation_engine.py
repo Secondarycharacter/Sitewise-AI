@@ -21,11 +21,13 @@ def _law_context(parcel: dict[str, Any]) -> dict[str, Any]:
 
 def _source_context(law_context: dict[str, Any], calculation: str) -> dict[str, Any]:
     law_status = law_context.get("status")
-    if law_status == "ok":
+    if law_status in ("ok", "document-indexed"):
         return {
             "type": "hybrid",
-            "status": "law-openapi-referenced",
-            "label": "법제처 조회됨 + fallback 계산",
+            "status": "law-document-indexed" if law_status == "document-indexed" else "law-openapi-referenced",
+            "label": "법제처 원문/별표 검색 가능 + fallback 계산"
+            if law_status == "document-indexed"
+            else "법제처 조회됨 + fallback 계산",
             "provider": law_context.get("provider"),
             "calculation": calculation,
         }
@@ -79,7 +81,7 @@ def analyze_regulations(parcel: dict[str, Any]) -> dict[str, Any]:
     notes: list[str] = list(parcel.get("warnings") or [])
     if law_context.get("message"):
         notes.append(str(law_context["message"]))
-    elif law_context.get("status") == "ok":
+    elif law_context.get("status") in ("ok", "document-indexed"):
         notes.append("법제처 Open API에서 법령/자치법규 후보를 조회했습니다.")
 
     if not has_zone:
@@ -110,6 +112,14 @@ def analyze_regulations(parcel: dict[str, Any]) -> dict[str, Any]:
             "source": _source_context(law_context, "zone-unavailable"),
             "lawReferences": law_context.get("lawReferences", []),
             "structuredRuleDrafts": law_context.get("structuredRuleDrafts", []),
+            "lawDocumentStatus": law_context.get("lawDocumentStatus"),
+            "lawDocumentSummaries": law_context.get("lawDocumentSummaries", []),
+            "lawSearchResults": law_context.get("lawSearchResults", []),
+            "articleReferences": law_context.get("articleReferences", []),
+            "appendixReferences": law_context.get("appendixReferences", []),
+            "articleAppendixLinks": law_context.get("articleAppendixLinks", []),
+            "buildingUseTaxonomy": law_context.get("buildingUseTaxonomy"),
+            "parkingRuleTables": law_context.get("parkingRuleTables", []),
             "jurisdiction": law_context.get("jurisdiction"),
             "needsManualReview": True,
             "uncertainty": _uncertainty_context(
@@ -156,6 +166,14 @@ def analyze_regulations(parcel: dict[str, Any]) -> dict[str, Any]:
         "source": _source_context(law_context, "ZONE_RULES fallback table"),
         "lawReferences": law_context.get("lawReferences", []),
         "structuredRuleDrafts": law_context.get("structuredRuleDrafts", []),
+        "lawDocumentStatus": law_context.get("lawDocumentStatus"),
+        "lawDocumentSummaries": law_context.get("lawDocumentSummaries", []),
+        "lawSearchResults": law_context.get("lawSearchResults", []),
+        "articleReferences": law_context.get("articleReferences", []),
+        "appendixReferences": law_context.get("appendixReferences", []),
+        "articleAppendixLinks": law_context.get("articleAppendixLinks", []),
+        "buildingUseTaxonomy": law_context.get("buildingUseTaxonomy"),
+        "parkingRuleTables": law_context.get("parkingRuleTables", []),
         "jurisdiction": law_context.get("jurisdiction"),
         "needsManualReview": True,
         "uncertainty": _uncertainty_context(

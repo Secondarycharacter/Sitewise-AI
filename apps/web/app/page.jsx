@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Viewer from '../components/Viewer'
 import RegulationPanel from '../components/RegulationPanel'
 import GridPlanEditor from '../components/GridPlanEditor'
+import BuildingOverviewSheet from '../components/BuildingOverviewSheet'
 
 const DEFAULT_FLOOR_HEIGHT_M = 4
 const API_BASE_URL = 'http://localhost:8002'
@@ -60,6 +61,68 @@ const DEFAULT_ASSISTANT_STATE = {
   loading: false,
   error: '',
 }
+const BUILDING_PROGRAM_TEST_PRESETS = [
+  {
+    id: 'officetel',
+    label: '오피스텔+근생',
+    description: '1층 근생, 상부 오피스텔. 세대 전용면적 입력과 외부 주택기준 미해결 표시를 확인합니다.',
+    floorUses: ['제1종 근린생활시설', '오피스텔', '오피스텔'],
+    parkingCount: '8',
+    buildingProgram: {
+      declaredProjectType: 'mixed_use_officetel',
+      commonAreaAllocationMethod: 'exclusive_area_ratio',
+      areaComponents: [
+        { id: 'retail_exclusive', use: '제1종 근린생활시설', areaKind: 'exclusive', areaM2: 120 },
+        { id: 'officetel_exclusive', use: '오피스텔', areaKind: 'exclusive', areaM2: 280 },
+        { id: 'officetel_common', use: '오피스텔 공용 복도/코어', areaKind: 'common', areaM2: 80 },
+      ],
+      units: [{ use: '오피스텔', count: 8, unitExclusiveAreaM2: 35 }],
+    },
+  },
+  {
+    id: 'neighborhood-house',
+    label: '상가주택',
+    description: '1층 근생, 상부 다가구주택. 주거/비주거 공용면적 배분 확인용입니다.',
+    floorUses: ['제2종 근린생활시설', '다가구주택', '다가구주택'],
+    parkingCount: '6',
+    buildingProgram: {
+      declaredProjectType: 'neighborhood_house',
+      commonAreaAllocationMethod: 'exclusive_area_ratio',
+      areaComponents: [
+        { id: 'retail_exclusive', use: '제2종 근린생활시설', areaKind: 'exclusive', areaM2: 90 },
+        { id: 'house_exclusive', use: '다가구주택', areaKind: 'exclusive', areaM2: 180 },
+        { id: 'shared_core', use: '공용 계단실/복도', areaKind: 'common', areaM2: 45 },
+      ],
+      units: [{ use: '다가구주택', count: 4, unitExclusiveAreaM2: 45 }],
+    },
+  },
+  {
+    id: 'mixed-use-residential',
+    label: '주상복합',
+    description: '저층 판매시설, 상부 공동주택. 주택계 세대 입력과 복합용도 분류 확인용입니다.',
+    floorUses: ['판매시설', '판매시설', '아파트', '아파트', '아파트'],
+    parkingCount: '18',
+    buildingProgram: {
+      declaredProjectType: 'mixed_use_residential',
+      commonAreaAllocationMethod: 'exclusive_area_ratio',
+      areaComponents: [
+        { id: 'retail_exclusive', use: '판매시설', areaKind: 'exclusive', areaM2: 260 },
+        { id: 'apartment_exclusive', use: '아파트', areaKind: 'exclusive', areaM2: 720 },
+        { id: 'shared_residential_core', use: '주거 공용 복도/코어', areaKind: 'common', areaM2: 180 },
+      ],
+      units: [{ use: '아파트', count: 12, unitExclusiveAreaM2: 60 }],
+    },
+  },
+]
+
+function defaultBuildingProgram() {
+  return {
+    declaredProjectType: '',
+    commonAreaAllocationMethod: 'exclusive_area_ratio',
+    areaComponents: [],
+    units: [],
+  }
+}
 
 function defaultModelSettings() {
   return {
@@ -74,6 +137,24 @@ function defaultModelSettings() {
     landscapeLegalArea: '',
     siteSetbackAdjacentM: 0.5,
     siteSetbackBuildingLineM: 0.5,
+    buildingProgram: defaultBuildingProgram(),
+  }
+}
+
+function normalizedBuildingProgram(program) {
+  return {
+    ...defaultBuildingProgram(),
+    ...(program || {}),
+    areaComponents: Array.isArray(program?.areaComponents) ? program.areaComponents : [],
+    units: Array.isArray(program?.units) ? program.units : [],
+  }
+}
+
+function normalizedModelSettings(settings) {
+  return {
+    ...defaultModelSettings(),
+    ...(settings || {}),
+    buildingProgram: normalizedBuildingProgram(settings?.buildingProgram),
   }
 }
 
@@ -81,6 +162,7 @@ function defaultRegulationOverrides() {
   return {
     bcrPercent: '',
     farPercent: '',
+    maxHeightM: '',
   }
 }
 
@@ -632,6 +714,7 @@ export default function Home() {
   const [selectedGridFloorId, setSelectedGridFloorId] = useState('')
   const [planView, setPlanView] = useState(DEFAULT_PLAN_VIEW)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [overviewOpen, setOverviewOpen] = useState(false)
   const [savedModels, setSavedModels] = useState([])
   const [selectedSaveId, setSelectedSaveId] = useState('')
   const [saveMessage, setSaveMessage] = useState('')
@@ -666,7 +749,7 @@ export default function Home() {
     const isNewAddressAnalysis = !options.preserveDesignState
       && lastAnalysisAddress
       && requestedAddress !== lastAnalysisAddress
-    const requestSettings = isNewAddressAnalysis ? defaultModelSettings() : settings
+    const requestSettings = isNewAddressAnalysis ? defaultModelSettings() : normalizedModelSettings(settings)
     const requestOverrides = isNewAddressAnalysis ? defaultRegulationOverrides() : overrides
 
     setLoading(true)
@@ -731,7 +814,7 @@ export default function Home() {
       }
       setLastAnalysisAddress(requestedAddress)
       if (data.modelSettings) {
-        setModelSettings(data.modelSettings)
+        setModelSettings(normalizedModelSettings(data.modelSettings))
       }
     } catch (err) {
       setError(err.message)
@@ -813,6 +896,81 @@ export default function Home() {
       ...current,
       [key]: value,
     }))
+  }
+
+  const updateBuildingProgramSetting = (key, value) => {
+    setModelSettings((current) => ({
+      ...current,
+      buildingProgram: {
+        ...normalizedBuildingProgram(current.buildingProgram),
+        [key]: value,
+      },
+    }))
+  }
+
+  const addProgramUnit = () => {
+    setModelSettings((current) => {
+      const buildingProgram = normalizedBuildingProgram(current.buildingProgram)
+      return {
+        ...current,
+        buildingProgram: {
+          ...buildingProgram,
+          units: [
+            ...buildingProgram.units,
+            {
+              use: '오피스텔',
+              count: 1,
+              unitExclusiveAreaM2: '',
+            },
+          ],
+        },
+      }
+    })
+  }
+
+  const updateProgramUnit = (index, key, value) => {
+    setModelSettings((current) => {
+      const buildingProgram = normalizedBuildingProgram(current.buildingProgram)
+      const units = [...buildingProgram.units]
+      units[index] = {
+        ...(units[index] || {}),
+        [key]: value,
+      }
+      return {
+        ...current,
+        buildingProgram: {
+          ...buildingProgram,
+          units,
+        },
+      }
+    })
+  }
+
+  const removeProgramUnit = (index) => {
+    setModelSettings((current) => {
+      const buildingProgram = normalizedBuildingProgram(current.buildingProgram)
+      return {
+        ...current,
+        buildingProgram: {
+          ...buildingProgram,
+          units: buildingProgram.units.filter((_unit, itemIndex) => itemIndex !== index),
+        },
+      }
+    })
+  }
+
+  const applyBuildingProgramPreset = (preset) => {
+    setModelSettings((current) => {
+      const floorUses = [...preset.floorUses]
+      return normalizedModelSettings({
+        ...current,
+        floorHeights: floorUses.map((_use, index) => current.floorHeights?.[index] || DEFAULT_FLOOR_HEIGHT_M),
+        floorUses,
+        parkingCount: preset.parkingCount,
+        buildingProgram: preset.buildingProgram,
+      })
+    })
+    setOverviewOpen(true)
   }
 
   const updateDesignFloorEdit = (floorId, key, value) => {
@@ -1103,7 +1261,7 @@ export default function Home() {
     setParcel(state.parcel || null)
     setRegulations(state.regulations || null)
     setRegulationOverrides(state.regulationOverrides || defaultRegulationOverrides())
-    setModelSettings(state.modelSettings || defaultModelSettings())
+    setModelSettings(normalizedModelSettings(state.modelSettings))
     setLastAnalysisAddress(String(state.address || state.parcel?.address || '').trim())
     setDesignState(state.designState || { floorEdits: {} })
     setGridState(state.gridState || { floors: {} })
@@ -1121,6 +1279,7 @@ export default function Home() {
     setDesignOpen(false)
     setGridEditorOpen(false)
     setSettingsOpen(false)
+    setOverviewOpen(false)
   }
 
   const loadSelectedModel = async () => {
@@ -1224,6 +1383,18 @@ export default function Home() {
           }}
         >
           모델 설정
+        </button>
+        <button
+          onClick={() => setOverviewOpen(true)}
+          style={{
+            background: 'white',
+            border: '1px solid #6d28d9',
+            color: '#5b21b6',
+            padding: '12px 24px',
+            cursor: 'pointer',
+          }}
+        >
+          건축개요
         </button>
         <button
           onClick={() => setDesignOpen(true)}
@@ -1344,6 +1515,22 @@ export default function Home() {
           </span>
         )}
       </div>
+
+      <BuildingOverviewSheet
+        open={overviewOpen}
+        onClose={() => setOverviewOpen(false)}
+        parcel={parcel}
+        regulations={regulations}
+        floorPlans={previewFloorPlans}
+        modelSettings={modelSettings}
+        presets={BUILDING_PROGRAM_TEST_PRESETS}
+        onApplyPreset={applyBuildingProgramPreset}
+        onModelSettingChange={updateModelSetting}
+        onBuildingProgramChange={updateBuildingProgramSetting}
+        onAddProgramUnit={addProgramUnit}
+        onUpdateProgramUnit={updateProgramUnit}
+        onRemoveProgramUnit={removeProgramUnit}
+      />
 
       {settingsOpen && (
         <div
@@ -1467,63 +1654,6 @@ export default function Home() {
                   />
                 </div>
               ))}
-            </section>
-
-            <section style={{ marginTop: 24 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 'bold' }}>건축개요 입력</h3>
-              <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-                <label style={{ display: 'grid', gap: 5, fontSize: 13 }}>
-                  구조
-                  <input
-                    placeholder="예) 철근콘크리트구조"
-                    value={modelSettings.buildingStructure || ''}
-                    onChange={(e) => updateModelSetting('buildingStructure', e.target.value)}
-                    style={{ border: '1px solid #ccc', padding: 10 }}
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: 5, fontSize: 13 }}>
-                  주차 총 대수
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="예) 12"
-                    value={modelSettings.parkingCount || ''}
-                    onChange={(e) => updateModelSetting('parkingCount', e.target.value)}
-                    style={{ border: '1px solid #ccc', padding: 10 }}
-                  />
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <label style={{ display: 'grid', gap: 5, fontSize: 13 }}>
-                    조경 설치면적(㎡)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="예) 35.5"
-                      value={modelSettings.landscapeInstalledArea || ''}
-                      onChange={(e) => updateModelSetting('landscapeInstalledArea', e.target.value)}
-                      style={{ border: '1px solid #ccc', padding: 10 }}
-                    />
-                  </label>
-                  <label style={{ display: 'grid', gap: 5, fontSize: 13 }}>
-                    법정 조경면적(㎡, 공란 시 자동)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="자동 산정"
-                      value={modelSettings.landscapeLegalArea || ''}
-                      onChange={(e) => updateModelSetting('landscapeLegalArea', e.target.value)}
-                      style={{ border: '1px solid #ccc', padding: 10 }}
-                    />
-                  </label>
-                </div>
-                <p style={{ margin: 0, color: '#777', fontSize: 12, lineHeight: 1.5 }}>
-                  조경 법정면적은 대지면적 200㎡ 이상 기준으로 자동 산정합니다.
-                  현재 MCP 미연결 상태라 지자체 조례 확인값은 직접 입력으로 보정할 수 있습니다.
-                </p>
-              </div>
             </section>
 
             <section style={{ marginTop: 24 }}>

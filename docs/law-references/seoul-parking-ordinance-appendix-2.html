@@ -1,0 +1,127 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko">
+ <head> 
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" /> 
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />    
+  <!-- 레이아웃 관련 CSS -->      
+  <!-- 레이아웃 관련 CSS //--> 
+  <script type="text/javascript" src="/LSW/js/jquery/jquery.min.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/common/common.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/common/drag_search.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/common/CookieUtil.js"></script> 
+  <script type="text/javascript" src="/LSW/js/jquery/jquery.loadmask.min.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/common/jquery-custom.js?Time=1780226087"></script> 
+  <!-- 레이아웃 관련 JS --> 
+  <script type="text/javascript" src="/LSW/js/jquery/jquery-ui.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/jquery/jquery-ui_2017.min.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/jquery/jquery.layout-latest.min.js?Time=1780226087"></script> 
+  <script type="text/javascript" src="/LSW/js/common/layout.js?Time=1780226087"></script> 
+  <!-- 레이아웃 관련 JS //-->  
+  <script type="text/javascript">
+        var webRoot = '/LSW';
+    </script> 
+  <link rel="shortcut icon" type="text/css" href="/LSW/images/ico_favorites.ico" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/lsw/common.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/js/jquery/jquery.loadmask.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/js/jquery/layout-default-latest.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/lsw/layout.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/lsw/board.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/ui_2017.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/fonts.css?Time=1780226087" />
+  <link rel="stylesheet" type="text/css" href="/LSW/css/byl.css" />
+  <style type="text/css">
+        .ui-layout-pane {
+            padding: 0;
+            background:	#EEE;
+        }
+        .ui-layout-west {
+            background:	#CFC;
+        }
+        .ui-layout-center {
+            background:	#FFC;
+            padding:	0; /* IMPORTANT - remove padding so pane can 'collapse' to 0-width */
+        }
+
+        .ui-layout-west > .ui-layout-center {
+            background:	#CFC;
+        }
+
+        .ui-layout-west > .ui-layout-south {
+            background:	#AFE;
+        }
+        .ui-layout-pane { border-width: 0; }
+        .ui-layout-north { border-bottom-width:	1px; }
+        .ui-layout-south { border-top-width: 1px; }
+        .ui-layout-resizer-west {
+            border-width: 0;
+            border-left: 2px solid #b4b4b4;
+            background-color:white;
+        }
+        .ui-layout-toggler {
+            border: 0;
+            background-color:#fff
+        }
+        .ui-layout-toggler-west-closed {
+            background-image: url("./images/button/leslidev7_2.gif");
+            background-color:white;
+            background-repeat: no-repeat;
+        }
+        .ui-layout-toggler-west-open {
+            background-image: url("./images/button/leslidev7_1.gif");
+            background-color:white;
+            background-repeat: no-repeat;
+        }
+    </style>
+  <title>별표·서식 &gt; 부설주차장의 설치대상 시설물 종류 및 설치기준 (제20조제1항 관련) | 국가법령정보센터 </title>
+ </head> 
+ <body>     
+  <script type="text/javascript" src="/LSW/js/byl/byl.js"></script> 
+  <script type="text/javascript">
+//<![CDATA[
+	$(document).ready(function(){
+		setDetailSelectBylCookie('ordin',$("#bylSeq").val());
+		var parameter = "bylSeq="+$("#bylSeq").val() + "&ordinSeq="+$("#ordinSeq").val() + "&vSct="+$("#vSct").val();
+
+		$.ajax({
+			url: "ordinBylInfoR.do",
+			type:'POST',
+			dataType:'text',
+			data: parameter,
+			timeout : 150000,
+	        error : function(request,status,error){
+	        	alert("다시 시도해주세요.");
+	        },
+			success: function(responseData){
+				$("#ordinBylInfoDiv").html(responseData);
+				fHstOrdinBylList();
+				$(".form_cont").css("height", $(window).innerHeight()-250);
+				$("#bylContents").css("height", $(".form_cont").height()-10);
+				$(".fancybox-inner").css("height", "90%");
+			}
+		});
+	});
+
+	$(window).resize(customResizePop);
+	function customResizePop() {
+		setTimeout(function() {
+			$(".form_cont").height(window.innerHeight-250); //본문 영역 사이즈 조절
+		}, 300);
+	}
+//]]>
+</script>    
+  <input type="hidden" id="vSct" name="vSct" value="*" /> 
+  <input type="hidden" id="bylSeq" name="bylSeq" value="21693939" /> 
+  <input type="hidden" id="ordinSeq" name="admRulSeq" value="2116611" /> 
+  <div class="pop_container"> 
+   <!-- 타이틀 --> 
+   <div id="topTitView" class="pop_tit" onclick="window.open('main.html');" onmouseover="this.style.cursor='pointer';"> 
+    <h2 class="tit">별표·서식</h2> 
+    <div class="top_img"> 
+     <img src="/LSW/images/common/poplogo.gif" alt="법제처 국가법령정보센터" /> 
+    </div> 
+   </div> 
+   <div id="ordinBylInfoDiv"></div> 
+  </div>   
+  <script type="text/javascript" src="/LSW/js/common/hrefRemove.js"></script>  
+ </body>
+</html>

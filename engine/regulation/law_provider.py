@@ -4,8 +4,10 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from engine.regulation.law_config import is_law_oc_configured
 
-LawTarget = Literal["law", "ordin", "admRul", "ordinance"]
+
+LawTarget = Literal["law", "ordin", "admRul", "ordinance", "licbyl"]
 ProviderStatus = Literal["ok", "skipped", "error"]
 
 
@@ -32,6 +34,7 @@ class LawSearchQuery:
     query: str
     target: LawTarget = "law"
     jurisdiction: Jurisdiction | None = None
+    search: int | None = None
     display: int = 10
     page: int = 1
 
@@ -146,7 +149,7 @@ class KoreanLawMcpProvider(LawProvider):
     provider_name = "korean-law-mcp"
 
     def is_configured(self) -> bool:
-        return False
+        return is_law_oc_configured()
 
     def _skipped(self, action: str) -> LawProviderResponse:
         return LawProviderResponse(

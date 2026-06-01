@@ -355,14 +355,227 @@ JUSO_API_KEY=주소정보누리집_도로명주소_API_승인키
 - `apps/web/app/page.jsx`
 - `engine/pipeline.py`
 
+## 개발노트: 법규 엔진 및 지구단위계획 첨부문서 분석 고도화
+
+최근 Phase3는 단순 용도지역 fallback 기준을 넘어, 실제 법규 원문/별표/토지이음/지구단위계획 문서를 함께 확인하는 방향으로 확장되었습니다.
+
+### 법제처 Open API / 조례 / 별표 색인
+
+법제처 Open API를 직접 활용하는 provider 구조를 추가했습니다.
+
+구현 범위:
+
+- 법령/자치법규/별표 검색을 위한 공통 provider 인터페이스
+- 관할 지자체 추정
+- 법령/조례 본문 문서 파싱
+- 별표 후보 검색 및 색인
+- 본문 조문과 별표 참조 연결
+- 문서 캐시 저장
+- 규제 패널에서 본문/별표 색인 상태 표시
+
+주요 파일:
+
+- `engine/regulation/law_provider.py`
+- `engine/regulation/law_openapi_client.py`
+- `engine/regulation/law_document.py`
+- `engine/regulation/law_document_store.py`
+- `engine/regulation/law_document_search.py`
+- `engine/regulation/article_appendix_linker.py`
+- `engine/regulation/law_appendix_downloader.py`
+
+정리:
+
+- 법규 검토 흐름은 "본문 확인 후 관련 별표 확인"을 기준으로 설계합니다.
+- 별표는 실무 계산식이 들어 있는 경우가 많으므로, 본문 조항과의 연결 상태를 별도로 추적합니다.
+- Open API로 직접 얻기 어려운 별표 본문은 국가법령정보센터 웹 경로를 통한 fallback 다운로드 구조를 둡니다.
+
+### 주차 산정 엔진
+
+서울시 주차장 조례 별표 2를 기준 사례로, 부설주차장 설치기준을 구조화하는 초기 엔진을 추가했습니다.
+
+구현 범위:
+
+- 주택계/오피스텔/복합용도 주차 산정을 위해 `buildingProgram` 건축개요 데이터 모델 초안 추가
+- 층별 용도/면적 또는 향후 입력될 `buildingProgram.areaComponents`를 바탕으로 일반건축물, 오피스텔, 상가주택, 다가구주택, 공동주택/아파트, 주상복합/복합주거를 1차 분류
+- 전용면적, 공용면적, 주차면적, 기계/전기/코어 등 공용 성격 면적을 구분하고 공용면적 배분 후보를 생성
+- 주택/오피스텔은 세대·호실별 전용면적 입력이 없으면 주차 산정을 `needs_input` 대상으로 분류
+- 모델 설정과 분리된 `건축개요` 전용 화면을 추가하고, 첨부된 일반건축물 개요 XLS의 좌측 설계개요/우측 층별 용도개요 구조를 웹 표로 재현
+- 내부 건축개요 데이터는 세움터 입력 항목과 가장 가까운 `국토교통부_건축HUB_건축인허가정보 서비스` 구조를 기준으로 `buildingPermitOverview` 초안 스키마를 추가
+- `buildingPermitOverview`는 기본개요, 대지위치, 지역지구구역, 동별개요, 층별개요, 호별개요, 전유/공용면적, 주차장/부설주차장 섹션으로 구성
+- 각 섹션은 건축HUB 필드명(`platPlc`, `sigunguCd`, `bjdongCd`, `platArea`, `archArea`, `totArea`, `vlRatEstmTotArea`, `flrNoNm`, `mainPurpsCdNm` 등)과 한글 라벨을 함께 저장
+- 실제 세움터 스크린샷을 참고해 건축개요 화면을 `대지조건`, `전체개요`, `준주택/도시형 생활주택 개요`, `동별개요`, `층별개요`, `주차장`, `공적공간`, `호(실)/가구별 면적`의 접이식 섹션형 UI로 재구성
+- 층별 용도와 면적은 3D 모델링 결과(`floorPlans`)와 건축규제 분석값을 기반으로 자동 기입하고, 구조/계획 주차대수/조경 계획값만 별도 보정 가능하도록 구성
+- 현재 동작을 빠르게 검증할 수 있도록 오피스텔+근생, 상가주택, 주상복합 건축개요 테스트 프리셋을 `건축개요` 화면으로 이동
+- 사용자가 개요 유형을 명시하면 자동 추론보다 우선 적용하고, RegulationPanel에서도 건축개요/면적 구성 및 누락 입력을 요약 표시
+- 주택/오피스텔처럼 조례 별표가 `주택건설기준 등에 관한 규정` 등 외부 기준을 참조하는 경우, 잘못 0대로 합산하지 않고 세대·전용면적 입력 상태와 미해결 기준을 별도 행으로 표시
+- `건축법 시행령 별표 1` 건축물 용도 분류를 기준으로 층별 입력 용도를 먼저 정규화
+- 법정 용도 대분류, 세부용도, 주차 산정용 매핑 카테고리를 주차 입력값에 함께 저장
+- 법제처/별표 원문 수집 흐름에 `건축법 시행령 건축물의 용도` 검색을 추가하고, 수집된 별표 1 텍스트를 구조화하는 파서 초안을 추가
+- 법제처 검색 결과가 여러 개일 때 목적별 후보 랭킹을 적용해 `건축법 시행령 [별표 1] 용도별 건축물의 종류`와 `주차장 설치 및 관리 조례 [별표 2] 부설주차장 설치기준`을 우선 선택
+- 별표 1 원문을 수집하지 못한 경우에는 seed taxonomy를 후보 매칭에만 사용하되 `seed-fallback` 및 비권위 상태로 명시
+- 주차 산정은 법제처 원문 기반 용도 taxonomy가 있을 때만 용도분류 근거를 authoritative하게 취급하고, API 미확인 상태에서는 수동확인을 유지
+- 별표 텍스트에서 시설별 주차 산정 기준 추출
+- `시설면적 n㎡당 1대` 유형의 계산식 파싱
+- 한 시설 행 안에 여러 세부 기준이 있는 경우(일반업무/공공업무, 학교/기숙사/그 밖의 건축물) 세부 기준 후보를 분리
+- 층별 평면 용도/면적을 주차 산정 입력값으로 정규화
+- 근린생활시설, 판매시설, 업무시설 등 유사 용도 간 매칭 우선순위 보정
+- 오피스텔처럼 건축법 시행령상 업무시설이지만 주차 조례에서는 별도 주택 기준 항목으로 산정되는 용도를 분리
+- 복합용도 산정 시 용도별 산정값을 소수점 이하 첫째자리까지 반영한 뒤 합산
+- 계획 주차대수와 법정 필요대수 비교
+- 계획대수가 필요대수 이상이어도 별표 파싱 근거가 초안이면 체크리스트를 수동확인 상태로 유지
+- 주차장 설치제한구역, 장애인전용주차구획 등은 별도 확인 항목으로 분리
+
+주요 파일:
+
+- `engine/regulation/parking_rule_parser.py`
+- `engine/regulation/building_program_model.py`
+- `engine/regulation/building_use_classifier.py`
+- `engine/regulation/building_use_appendix_parser.py`
+- `engine/regulation/parking_area_model.py`
+- `engine/regulation/parking_calculator.py`
+- `engine/regulation/parking_exception_engine.py`
+- `engine/regulation/accessible_parking_engine.py`
+
+정리:
+
+- 주차대수 산정은 조례 별표에 크게 의존합니다.
+- 설치제한구역, 장애인/전기차/경형/친환경 등은 별도 엔진 또는 수동 옵션으로 분리하는 방향이 적합합니다.
+
+### 토지이음 / 지구단위계획 감지
+
+토지이음 및 공공데이터포털 토지이용규제정보서비스를 염두에 둔 EUM 컨텍스트를 추가했습니다.
+
+구현 범위:
+
+- PNU 기반 토지이용규제정보서비스 조회 준비
+- API 키가 없을 때 parcel/zone 데이터 기반 fallback
+- 지역·지구 후보 정규화
+- 지구단위계획구역 감지
+- 지구단위계획이 건폐율/용적률/높이 기준을 바꿀 수 있음을 규제 패널과 체크리스트에 표시
+
+주요 파일:
+
+- `engine/regulation/eum_client.py`
+- `engine/regulation/eum_engine.py`
+- `engine/regulation/district_plan_engine.py`
+
+정리:
+
+- 지구단위계획구역은 감지 단계와 실제 수치 적용 단계를 분리합니다.
+- 실제 수치 적용은 결정도서/시행지침 확인 후 사용자가 최종값을 수동 입력하는 방식이 현실적입니다.
+
+### 지구단위계획 결정도서/시행지침 첨부문서 분석
+
+지구단위계획 결정도서/시행지침은 전산화되어 있지 않은 PDF/JPG 문서인 경우가 많으므로, 문서 업로드 기반 분석 흐름을 추가했습니다.
+
+구현 범위:
+
+- PDF/JPG/PNG/WEBP/TXT/HTML/MD 업로드
+- 문서 원본과 분석 JSON을 `.fam-cache/district_plan_documents`에 저장
+- 대지별 최근 분석 이력 조회
+- 텍스트/HTML 즉시 분석
+- 텍스트 레이어가 있는 PDF의 제한적 텍스트 추출
+- 이미지/스캔 PDF는 OCR 어댑터를 통해 분석 시도
+- 건폐율/용적률/높이/층수/용도/한계선/인센티브 관련 문구 요약
+- 규제 패널에 최근 분석 이력과 요약 카드 표시
+
+주요 파일:
+
+- `apps/web/app/api/district-plan/analyze/route.js`
+- `apps/web/lib/districtPlanDocumentAnalysis.js`
+- `apps/web/lib/ocrAdapter.js`
+- `apps/web/components/RegulationPanel.jsx`
+
+중요한 정책:
+
+- 첨부문서 분석은 자동 산정/자동 적용이 아니라 요약 보조 기능입니다.
+- 건폐율, 용적률, 높이의 최종 적용값은 사용자가 수동 입력합니다.
+- 인센티브표는 공개공지, 권장용도, 공공기여 등 계획 조건과 맞물려 자동 산정하지 않습니다.
+- 인센티브표/완화/상한 관련 문구는 별도 요약 후보로만 표시합니다.
+
+현재 OCR 상태:
+
+- `FAM_OCR_PROVIDER=local-tesseract` 설정 시 로컬 Tesseract OCR을 사용할 수 있습니다.
+- 스캔 PDF는 Poppler `pdftoppm`으로 페이지 이미지를 만든 후 OCR합니다.
+- 현재 개발 환경에서는 `tesseract`, `pdftoppm`이 PATH에서 발견되지 않았으므로 실제 OCR은 도구 설치 후 테스트가 필요합니다.
+
+### 수동 입력 기준값 반영
+
+지구단위계획 문서 요약 후보를 참고해 사용자가 직접 입력한 값을 모델링에 반영하는 흐름을 정리했습니다.
+
+현재 수동 입력 항목:
+
+- 건폐율
+- 용적률
+- 높이 제한
+
+동작:
+
+- 첨부문서 요약 카드의 후보값을 수동 입력란에 채울 수 있습니다.
+- 최종 반영은 사용자가 `모델링에 반영` 버튼을 눌러 수행합니다.
+- 백엔드 파이프라인은 `regulationOverrides.maxHeightM` 값을 `limits.max_height_m`에 반영합니다.
+- 모델 생성 시 높이 제한은 매스 생성 높이에 반영됩니다.
+- 자동 체크리스트에 `높이 제한` 항목이 추가됩니다.
+
+관련 파일:
+
+- `apps/web/app/page.jsx`
+- `apps/web/components/RegulationPanel.jsx`
+- `engine/pipeline.py`
+- `engine/regulation/site_compliance_engine.py`
+- `engine/regulation/compliance_evidence_planner.py`
+
+### 대지별 자동 법규 체크리스트
+
+수동 질문 기반 QA가 아니라, 대지/계획/법규 데이터로 필요한 검토 항목을 자동 생성하는 방식으로 전환했습니다.
+
+현재 체크 항목:
+
+- 토지이용/행위제한
+- 법규 원문/별표 근거
+- 건폐율
+- 용적률
+- 높이 제한
+- 지구단위계획 규모 보정 필요 여부
+- 부설주차장 필요대수
+- 주차장 설치제한구역/예외
+- 장애인전용주차구획
+- 조경 의무
+- 대지안의 공지
+
+주요 파일:
+
+- `engine/regulation/site_compliance_engine.py`
+- `engine/regulation/compliance_evidence_planner.py`
+
+정리:
+
+- 자동 확정 가능한 항목은 `pass/fail`로 표시합니다.
+- 원문 대조, 별표 확인, 수동 입력이 필요한 항목은 `needs_review`, `needs_input`, `data_missing`으로 분리합니다.
+- 지구단위계획 첨부문서 분석 결과는 자동 확정값이 아니라 수동 입력을 돕는 근거 자료로 다룹니다.
+
 ## 현재 환경 변수
 
 ```env
 VWORLD_API_KEY=발급받은_VWorld_인증키
 VWORLD_DOMAIN=http://localhost:3000
 
-# 선택 사항
-JUSO_API_KEY=주소정보누리집_도로명주소_API_승인키
+# Korean Law Open API / 법제처
+LAW_OC=법제처_Open_API_OC
+
+# 토지이음/토지이용규제정보서비스
+EUM_SERVICE_KEY=공공데이터포털_서비스키
+# EUM_LAND_USE_RESTRICTION_URL=http://apis.data.go.kr/...
+
+# 지구단위계획 첨부문서 OCR
+# FAM_OCR_PROVIDER=local-tesseract
+# TESSERACT_CMD=tesseract
+# PDF_TO_IMAGE_CMD=pdftoppm
+# FAM_OCR_LANG=kor+eng
+# FAM_OCR_TIMEOUT_MS=30000
+# FAM_OCR_PDF_DPI=200
+# FAM_OCR_PDF_MAX_PAGES=5
+# FAM_OCR_PDF_CONVERT_TIMEOUT_MS=30000
 
 # API 없이 UI만 확인할 때
 FAM_DEMO_MODE=true

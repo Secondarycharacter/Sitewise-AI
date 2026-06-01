@@ -5,3 +5,4 @@ __pycache__/
 apps/api/static/models/*.glb
 apps/web/.next/
 apps/web/node_modules/
+.fam-cache/

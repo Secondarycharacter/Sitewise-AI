@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
 import requests
-from dotenv import load_dotenv
 
+from engine.regulation.law_config import (
+    resolve_law_api_protocol,
+    resolve_law_oc,
+    resolve_law_referer,
+    resolve_law_user_agent,
+)
 from engine.regulation.law_provider import (
     LawProvider,
     LawProviderResponse,
@@ -19,22 +23,32 @@ from engine.regulation.law_provider import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(ROOT / ".env")
 
-LAW_SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"
-LAW_SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do"
+LAW_HOST = "www.law.go.kr"
 
 TITLE_KEYS = (
     "법령명한글",
     "법령명",
     "자치법규명",
     "조례명",
+    "별표서식명",
+    "별표명",
+    "별표제목",
     "ordinNm",
     "lawName",
     "title",
 )
-MST_KEYS = ("법령일련번호", "자치법규일련번호", "MST", "mst", "lawMst", "ordinMst")
-ID_KEYS = ("법령ID", "자치법규ID", "ID", "id", "lawId", "ordinId")
+MST_KEYS = (
+    "법령일련번호",
+    "자치법규일련번호",
+    "별표일련번호",
+    "MST",
+    "mst",
+    "lawMst",
+    "ordinMst",
+    "bylSeq",
+)
+ID_KEYS = ("법령ID", "자치법규ID", "별표ID", "ID", "id", "lawId", "ordinId", "bylId")
 EFFECTIVE_DATE_KEYS = ("시행일자", "시행일", "effectiveDate", "efYd")
 PROMULGATION_DATE_KEYS = ("공포일자", "공포일", "promulgationDate", "ancYd")
 URL_KEYS = ("상세링크", "법령상세링크", "url", "link")
@@ -78,13 +92,33 @@ def _candidate_dicts(payload: Any) -> list[dict[str, Any]]:
     return candidates
 
 
-def _source_url(target: str, oc: str, reference_id: str | None = None, mst: str | None = None) -> str:
+def _api_error_message(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    result = payload.get("result")
+    message = payload.get("msg") or payload.get("message")
+    if result or message:
+        return " / ".join(str(value) for value in (result, message) if value)
+    return None
+
+
+def _api_url(protocol: str, endpoint: str) -> str:
+    return f"{protocol}://{LAW_HOST}/DRF/{endpoint}"
+
+
+def _source_url(
+    target: str,
+    oc: str,
+    reference_id: str | None = None,
+    mst: str | None = None,
+    protocol: str = "https",
+) -> str:
     params: dict[str, str] = {"OC": oc, "target": target, "type": "JSON"}
     if mst:
         params["MST"] = mst
     elif reference_id:
         params["ID"] = reference_id
-    return f"{LAW_SERVICE_URL}?{urlencode(params)}"
+    return f"{_api_url(protocol, 'lawService.do')}?{urlencode(params)}"
 
 
 class LawOpenApiProvider(LawProvider):
@@ -96,7 +130,11 @@ class LawOpenApiProvider(LawProvider):
         timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
-        self.oc = (oc if oc is not None else os.getenv("LAW_OC", "")).strip()
+        configured_oc = resolve_law_oc()
+        self.oc = (oc if oc is not None else configured_oc).strip()
+        self.protocol = resolve_law_api_protocol()
+        self.referer = resolve_law_referer()
+        self.user_agent = resolve_law_user_agent()
         self.timeout = timeout
         self.session = session or requests.Session()
 
@@ -112,7 +150,16 @@ class LawOpenApiProvider(LawProvider):
 
     def _request(self, url: str, params: dict[str, Any]) -> tuple[dict[str, Any], int]:
         started = time.monotonic()
-        response = self.session.get(url, params=params, timeout=self.timeout)
+        response = self.session.get(
+            url,
+            params=params,
+            headers={
+                "Referer": self.referer,
+                "User-Agent": self.user_agent,
+                "Accept": "application/json,text/plain,*/*",
+            },
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         elapsed_ms = int((time.monotonic() - started) * 1000)
         return response.json(), elapsed_ms
@@ -144,14 +191,28 @@ class LawOpenApiProvider(LawProvider):
             "display": str(max(1, min(query.display, 100))),
             "page": str(max(1, query.page)),
         }
+        if query.search is not None:
+            params["search"] = str(query.search)
         query_payload = {**query.to_dict(), "target": target}
 
         try:
-            payload, elapsed_ms = self._request(LAW_SEARCH_URL, params)
+            payload, elapsed_ms = self._request(_api_url(self.protocol, "lawSearch.do"), params)
         except Exception as exc:
             return self._error_response(f"search:{query.query}", exc, query_payload)
 
         references = self._references_from_search(payload, target, query)
+        api_error = _api_error_message(payload)
+        if api_error and not references:
+            return LawProviderResponse(
+                provider=self.provider_name,
+                status="error",
+                references=[],
+                query=query_payload,
+                message=f"법제처 검색 API 오류: {api_error}",
+                elapsed_ms=elapsed_ms,
+                raw_response=payload,
+            )
+
         status = "ok" if references else "error"
         message = None if references else "법제처 검색 응답에서 법규 후보를 찾지 못했습니다."
         return LawProviderResponse(
@@ -181,7 +242,7 @@ class LawOpenApiProvider(LawProvider):
             law_id = _first_value(item, ID_KEYS)
             reference_id = mst or law_id
             direct_url = _first_value(item, URL_KEYS)
-            url = direct_url or _source_url(target, self.oc, reference_id=law_id, mst=mst)
+            url = direct_url or _source_url(target, self.oc, reference_id=law_id, mst=mst, protocol=self.protocol)
             references.append(
                 LawReference(
                     id=reference_id,
@@ -220,6 +281,8 @@ class LawOpenApiProvider(LawProvider):
         }
         if reference.mst:
             params["MST"] = reference.mst
+        elif reference.target == "licbyl" and reference.id:
+            params["bylSeq"] = reference.id
         elif reference.law_id:
             params["ID"] = reference.law_id
         elif reference.id:
@@ -233,9 +296,21 @@ class LawOpenApiProvider(LawProvider):
             )
 
         try:
-            payload, elapsed_ms = self._request(LAW_SERVICE_URL, params)
+            payload, elapsed_ms = self._request(_api_url(self.protocol, "lawService.do"), params)
         except Exception as exc:
             return self._error_response(f"{scope}:{reference.title}", exc, reference.to_dict())
+
+        api_error = _api_error_message(payload)
+        if api_error:
+            return LawProviderResponse(
+                provider=self.provider_name,
+                status="error",
+                references=[reference],
+                query={"scope": scope, **params},
+                message=f"{scope}: 법제처 상세 API 오류: {api_error}",
+                elapsed_ms=elapsed_ms,
+                raw_response=payload,
+            )
 
         enriched = LawReference(
             **{

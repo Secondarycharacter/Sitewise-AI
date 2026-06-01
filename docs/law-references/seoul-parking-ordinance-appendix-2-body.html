@@ -1,0 +1,62 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko">
+ <head>
+  <link rel="stylesheet" type="text/css" href="/LSW/js/jquery/jquery.fancybox-2.1.5.css" />
+  <style type="text/css">
+	div.form_cont{
+		height: calc(50vh - 10px);
+	}
+</style>
+ </head>
+ <body>
+  <input type="hidden" id="bylOrdinId" name="bylOrdinId" value="2000351" /> 
+  <input type="hidden" id="bylOrdinSeq" name="bylOrdinSeq" value="2116611" /> 
+  <input type="hidden" id="gubun" name="gubun" value="KLAW" />  
+  <script type="text/javascript" src="/LSW/js/jquery/jquery.fancybox-2.1.5.pack.js"></script>  
+  <!-- 컨텐츠 영역 --> 
+  <div class="wrap_type"> 
+   <div class="area_tit"> 
+    <p class="ast_tit">서울특별시 주차장 설치 및 관리 조례<br />[시행 2026. 3. 30.][서울특별시조례 제10047호, 2026. 3. 30., 일부개정]</p> 
+    <div class="ico_bx"> 
+     <a href="javascript:;" title="저장" onclick="javascrpt:setDownBtn('1');return false;"><img src="/LSW/images/button/btn_han_w.gif" alt="저장" /></a> 
+     <a href="javascript:;" onclick="javascrpt:printlsByl();return false;" title="팝업으로 이동"><img src="/LSW/images/common/btn_v13fn7.gif" alt="인쇄" /></a> 
+    </div> 
+   </div> 
+   <div class="ast_cont" style="min-width: 950px;"> 
+    <div class="cn"> 
+     <span class="tmi"></span> 
+     <span class="tle"></span> 
+     <span class="tri"></span> 
+     <span class="bmi"></span> 
+     <span class="ble"></span> 
+     <span class="bri"></span> 
+    </div> 
+    <!-- 목록 선택 영역 --> 
+    <ul class="ast_sel_list"> 
+     <li id="prboxList"> <label for="bylList"><img src="/LSW/images/common/stit_stpo1.gif" alt="별표목록" /></label> <select id="bylList" style="width:70%">
+       <!-- 팝업 사이즈에 맞게 %, px로 사이즈 지정 --> <option value="21693937,0001,00,300401">[별표 1] 공영주차장 주차요금표(제6조제1항 관련)</option> <option value="21693939,0002,00,300401" selected="selected">[별표 2] 부설주차장의 설치대상 시설물 종류 및 설치기준 (제20조제1항 관련)</option> <option value="21694021,0003,00,300401">[별표 3] 부설주차장의 설치제한 지역에서의 시설물의 종류별 설치기준(제21제2항 관련)</option> <option value="21694023,0004,00,300401">[별표 4] 중ㆍ대형 승합자동차 부설주차장의 설치대상 시설물 종류 및 설치기준 (제20조 제3항 관련)</option> <option value="21694025,0001,00,300403">[별도 1] 삭제 &lt;2023. 12. 29.&gt;</option> <option value="21694027,0002,00,300403">[별도 2] 삭제 &lt;2023. 12. 29.&gt;</option> <option value="21694029,0003,00,300403">[별도 3] 가족배려주차장 주차구획(제25조의2제5항 관련)</option> <option value="21694031,0004,00,300403">[별도 4] 환경친화적자동차전용주차장 주차구획(제25조의3제2항 관련)</option> <option value="21694033,0005,00,300403">[별도 5] 국가유공자 등 우선주차구획(제25조의5제4항 관련)</option> <option value="21694035,0006,00,300403">[별도 6] 국가유공자 등 우선주차구획 안내표지판(제25조의5제4항 관련)</option> </select> <a href="javascript:;" class="btn type" onclick="javascript:fHstOrdinBylList();return false;">선택</a> </li> 
+     <li id="bylListR"></li> 
+    </ul> 
+   </div> 
+   <div class="ast_cont02" style="height: auto; min-width: 922px;"> 
+    <div class="cn"> 
+     <span class="tmi"></span> 
+     <span class="tle"></span> 
+     <span class="tri"></span> 
+     <span class="ble"></span> 
+     <span class="bri"></span> 
+    </div> 
+    <!-- Content 영역 --> 
+    <div class="form_cont" id="bylContents" style="display: block; overflow: auto; width: 926px; height: 470px;"> 
+     <!-- 				<div class="subtit2" style="padding:0 15px 0 0;"> --> 
+     <!-- 					<h6>※ 이 조례.규칙은 <a href="http://www.elis.go.kr/" target="_blank">행정안전부</a>에서 제공하고 있습니다.</h6> --> 
+     <!-- 					<h6>미리보기가 지원되지 않습니다.</h6> --> 
+     <!-- 				</div> --> 
+    </div> 
+   </div> 
+  </div> 
+  <!-- container //--> 
+  <!-- 별표파일 TEXT 다운로드 ACTION --> 
+  <input type="hidden" id="bylTextDownAction" value="ordinBylTextDownLoad.do" /> 
+ </body>
+</html>

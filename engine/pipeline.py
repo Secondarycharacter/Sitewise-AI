@@ -1,9 +1,23 @@
 from engine.export.glb_exporter import export_scene
 from engine.geometry.envelope_generator import create_buildable_floor_masses
+from engine.regulation.district_plan_engine import build_district_plan_context
+from engine.regulation.eum_engine import build_eum_context
+from engine.regulation.building_permit_overview import build_building_permit_overview
+from engine.regulation.building_program_model import build_building_program_summary
+from engine.regulation.parking_calculator import calculate_parking_requirements
 from engine.regulation.regulation_engine import analyze_regulations
+from engine.regulation.site_compliance_engine import build_site_compliance_checklist
 
 
 def _positive_percent(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _positive_float(value) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -18,10 +32,13 @@ def _apply_regulation_overrides(regulations: dict, overrides: dict | None) -> di
     limits = dict(regulations["limits"])
     bcr = _positive_percent(overrides.get("bcrPercent"))
     far = _positive_percent(overrides.get("farPercent"))
+    max_height = _positive_float(overrides.get("maxHeightM"))
     if bcr is not None:
         limits["bcr_percent"] = bcr
     if far is not None:
         limits["far_percent"] = far
+    if max_height is not None:
+        limits["max_height_m"] = max_height
 
     computed = dict(regulations.get("computed") or {})
     site_area_m2 = float(computed.get("site_area_m2") or 0)
@@ -32,10 +49,10 @@ def _apply_regulation_overrides(regulations: dict, overrides: dict | None) -> di
     updated = dict(regulations)
     updated["limits"] = limits
     updated["computed"] = computed
-    updated["overridden"] = bcr is not None or far is not None
+    updated["overridden"] = bcr is not None or far is not None or max_height is not None
     if updated["overridden"]:
         notes = list(updated.get("notes") or [])
-        notes.append("건폐율·용적률은 사용자가 입력한 값으로 모델링에 반영되었습니다.")
+        notes.append("건폐율·용적률·높이는 사용자가 입력한 값으로 모델링에 반영되었습니다.")
         updated["notes"] = notes
     return updated
 
@@ -78,6 +95,49 @@ def run_phase2_pipeline(
             max_building_area_m2=(regulations.get("computed") or {}).get("max_building_area_m2"),
         )
         meshes.extend(floor_meshes)
+
+    if floor_plans:
+        building_program = build_building_program_summary(
+            floor_plans,
+            resolved_model_settings,
+            regulations.get("buildingUseTaxonomy"),
+        )
+        regulations = {
+            **regulations,
+            "buildingProgram": building_program,
+            "parkingCalculation": calculate_parking_requirements(
+                floor_plans,
+                regulations.get("parkingRuleTables") or [],
+                regulations.get("buildingUseTaxonomy"),
+                building_program,
+            ),
+        }
+        regulations = {
+            **regulations,
+            "buildingPermitOverview": build_building_permit_overview(
+                parcel,
+                regulations,
+                floor_plans,
+                resolved_model_settings,
+            ),
+        }
+
+    eum_context = build_eum_context(parcel)
+    regulations = {
+        **regulations,
+        "eum": eum_context,
+        "districtPlan": build_district_plan_context(parcel, regulations, eum_context),
+    }
+
+    regulations = {
+        **regulations,
+        "siteCompliance": build_site_compliance_checklist(
+            parcel,
+            regulations,
+            floor_plans,
+            resolved_model_settings,
+        ),
+    }
 
     model_url = export_scene(*meshes)
 
